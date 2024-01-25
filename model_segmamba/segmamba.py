@@ -164,7 +164,7 @@ class SegMamba(nn.Module):
         self.layer_scale_init_value = layer_scale_init_value
 
         self.spatial_dims = spatial_dims
-        self.vit = MambaEncoder(in_chans, 
+        self.mamba_encoder = MambaEncoder(in_chans, 
                               )
         self.encoder1 = UnetrBasicBlock(
             spatial_dims=spatial_dims,
@@ -267,7 +267,7 @@ class SegMamba(nn.Module):
         return x
 
     def forward(self, x_in):
-        outs = self.vit(x_in)
+        outs = self.mamba_encoder(x_in)
         enc1 = self.encoder1(x_in)
         x2 = outs[0]
         enc2 = self.encoder2(x2)
