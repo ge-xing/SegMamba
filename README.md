@@ -32,7 +32,7 @@ cd mamba
 python setup.py install
 ```
 
-### install monai 
+### Install monai 
 
 ```bash
 pip install monai
