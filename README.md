@@ -8,6 +8,8 @@ SegMamba: Long-range Sequential Modeling Mamba For 3D Medical Image Segmentation
 Our advantage in speed and memory.
 ![](images/segmamba_ablation.jpg)
 
+M1 is the 3D UX-UNet, and M3 is SwinUNETR. They are unable to model the global features of the entire volume. In M2, the self-attention module struggles to model excessively long sequences.
+
 ## Environment install
 Clone this repository and navigate to the root directory of the project.
 
