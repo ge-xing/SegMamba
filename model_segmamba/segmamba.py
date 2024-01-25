@@ -10,19 +10,47 @@
 # limitations under the License.
 
 from __future__ import annotations
-
 import torch.nn as nn
 import torch 
+from functools import partial
+
 from monai.networks.blocks.dynunet_block import UnetOutBlock
 from monai.networks.blocks.unetr_block import UnetrBasicBlock, UnetrUpBlock
 from mamba_ssm import Mamba
 import torch.nn.functional as F 
 
+class LayerNorm(nn.Module):
+    r""" LayerNorm that supports two data formats: channels_last (default) or channels_first.
+    The ordering of the dimensions in the inputs. channels_last corresponds to inputs with
+    shape (batch_size, height, width, channels) while channels_first corresponds to inputs
+    with shape (batch_size, channels, height, width).
+    """
+    def __init__(self, normalized_shape, eps=1e-6, data_format="channels_last"):
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(normalized_shape))
+        self.bias = nn.Parameter(torch.zeros(normalized_shape))
+        self.eps = eps
+        self.data_format = data_format
+        if self.data_format not in ["channels_last", "channels_first"]:
+            raise NotImplementedError
+        self.normalized_shape = (normalized_shape, )
+
+    def forward(self, x):
+        if self.data_format == "channels_last":
+            return F.layer_norm(x, self.normalized_shape, self.weight, self.bias, self.eps)
+        elif self.data_format == "channels_first":
+            u = x.mean(1, keepdim=True)
+            s = (x - u).pow(2).mean(1, keepdim=True)
+            x = (x - u) / torch.sqrt(s + self.eps)
+            x = self.weight[:, None, None, None] * x + self.bias[:, None, None, None]
+
+            return x
+
 class MambaLayer(nn.Module):
-    def __init__(self, dim, d_state = 16, d_conv = 4, expand = 2, mlp_ratio=4, drop=0., drop_path=0., act_layer=nn.GELU):
+    def __init__(self, dim, d_state = 16, d_conv = 4, expand = 2):
         super().__init__()
         self.dim = dim
-        self.norm1 = nn.LayerNorm(dim)
+        self.norm = nn.LayerNorm(dim)
         self.mamba = Mamba(
                 d_model=dim, # Model dimension d_model
                 d_state=d_state,  # SSM state expansion factor
@@ -30,40 +58,31 @@ class MambaLayer(nn.Module):
                 expand=expand,    # Block expansion factor
                 bimamba_type="v2",
         )
-
-        self.norm2 = nn.LayerNorm(dim)
-        mlp_hidden_dim = int(dim * mlp_ratio)
-        self.mlp = Mlp(dim, mlp_hidden_dim)
-
+    
     def forward(self, x):
-        B, C, D, H, W = x.shape
-        # print(x.shape)
+        B, C = x.shape[:2]
         assert C == self.dim
         n_tokens = x.shape[2:].numel()
         img_dims = x.shape[2:]
         x_flat = x.reshape(B, C, n_tokens).transpose(-1, -2)
-
-        x_mamba = x_flat + self.mamba(self.norm1(x_flat))
-        x_mamba = x_mamba + self.mlp(self.norm2(x_mamba))
+        x_norm = self.norm(x_flat)
+        x_mamba = self.mamba(x_norm)
         out = x_mamba.transpose(-1, -2).reshape(B, C, *img_dims)
         return out
     
-class Mlp(nn.Module):
-    """
-    Implementation of MLP with 1*1 convolutions.
-    Input: tensor with shape [B, C, H, W]
-    """
+class MlpChannel(nn.Module):
     def __init__(self,hidden_size, mlp_dim, ):
         super().__init__()
-        self.fc1 = nn.Linear(hidden_size, mlp_dim)
+        self.fc1 = nn.Conv3d(hidden_size, mlp_dim, 1)
         self.act = nn.GELU()
-        self.fc2 = nn.Linear(mlp_dim, hidden_size)
+        self.fc2 = nn.Conv3d(mlp_dim, hidden_size, 1)
 
     def forward(self, x):
         x = self.fc1(x)
         x = self.act(x)
         x = self.fc2(x)
         return x
+
 
 class MambaEncoder(nn.Module):
     def __init__(self, in_chans=1, depths=[2, 2, 2, 2], dims=[48, 96, 192, 384],
@@ -73,10 +92,12 @@ class MambaEncoder(nn.Module):
         self.downsample_layers = nn.ModuleList() # stem and 3 intermediate downsampling conv layers
         stem = nn.Sequential(
               nn.Conv3d(in_chans, dims[0], kernel_size=7, stride=2, padding=3),
+              LayerNorm(dims[0], eps=1e-6, data_format="channels_first")
               )
         self.downsample_layers.append(stem)
         for i in range(3):
             downsample_layer = nn.Sequential(
+                LayerNorm(dims[i], eps=1e-6, data_format="channels_first"),
                 nn.Conv3d(dims[i], dims[i+1], kernel_size=2, stride=2),
             )
             self.downsample_layers.append(downsample_layer)
@@ -90,7 +111,15 @@ class MambaEncoder(nn.Module):
             self.stages.append(stage)
             cur += depths[i]
 
-        self.out_indices = out_indices       
+        self.out_indices = out_indices
+
+        self.mlps = nn.ModuleList()
+        norm_layer = partial(LayerNorm, eps=1e-6, data_format="channels_first")
+        for i_layer in range(4):
+            layer = norm_layer(dims[i_layer])
+            layer_name = f'norm{i_layer}'
+            self.add_module(layer_name, layer)
+            self.mlps.append(MlpChannel(dims[i_layer], 4 * dims[i_layer]))
 
     def forward_features(self, x):
         outs = []
@@ -98,7 +127,10 @@ class MambaEncoder(nn.Module):
             x = self.downsample_layers[i](x)
             x = self.stages[i](x)
             if i in self.out_indices:
-                outs.append(x)
+                norm_layer = getattr(self, f'norm{i}')
+                x_out = norm_layer(x)
+                x_out = self.mlps[i](x_out)
+                outs.append(x_out)
 
         return tuple(outs)
 
