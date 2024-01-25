@@ -3,6 +3,9 @@ SegMamba: Long-range Sequential Modeling Mamba For 3D Medical Image Segmentation
 
 [https://arxiv.org/abs/2401.13560](https://arxiv.org/abs/2401.13560)
 
+![](images/method_figure.jpg)
+
+Our advantage in speed and memory.
 ![](images/segmamba_ablation.jpg)
 
 ## Environment install
