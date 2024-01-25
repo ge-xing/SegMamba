@@ -48,3 +48,16 @@ pip install monai
 [https://github.com/hustvl/Vim](https://github.com/hustvl/Vim)
 
 [https://github.com/bowang-lab/U-Mamba](https://github.com/bowang-lab/U-Mamba)
+
+
+# Other awesome Mambas
+
+1. U-Mamba: Enhancing Long-range Dependency for Biomedical Image Segmentation [paper
+](https://arxiv.org/abs/2401.04722) | [code](https://github.com/bowang-lab/U-Mamba)
+
+2. Vision Mamba: Efficient Visual Representation Learning with Bidirectional State Space Model [paper
+](https://arxiv.org/abs/2401.09417) | [code](https://github.com/hustvl/Vim)
+
+3. VMamba: Visual State Space Model [paper](https://arxiv.org/abs/2401.10166) | [code](https://github.com/MzeroMiko/VMamba)
+
+4. Diffusion Models Without Attention [paper](https://arxiv.org/abs/2311.18257) | [code]()
