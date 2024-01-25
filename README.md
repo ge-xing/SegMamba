@@ -2,6 +2,9 @@
 SegMamba: Long-range Sequential Modeling Mamba For 3D Medical Image Segmentation
 
 [https://arxiv.org/abs/2401.13560](https://arxiv.org/abs/2401.13560)
+
+![](images/segmama_ablation.jpg)
+
 ## Environment install
 Clone this repository and navigate to the root directory of the project.
 
