@@ -51,13 +51,13 @@ pip install monai
 
 
 # Other awesome Mambas in Vision
+1. Vivim: a Video Vision Mamba for Medical Video
+Object Segmentation [paper](https://arxiv.org/pdf/2401.14168.pdf) | [code](https://github.com/scott-yjyang/Vivim)
+2. U-Mamba: Enhancing Long-range Dependency for Biomedical Image Segmentation [paper](https://arxiv.org/abs/2401.04722) | [code](https://github.com/bowang-lab/U-Mamba)
 
-1. U-Mamba: Enhancing Long-range Dependency for Biomedical Image Segmentation [paper
-](https://arxiv.org/abs/2401.04722) | [code](https://github.com/bowang-lab/U-Mamba)
+3. Vision Mamba: Efficient Visual Representation Learning with Bidirectional State Space Model [paper](https://arxiv.org/abs/2401.09417) | [code](https://github.com/hustvl/Vim)
 
-2. Vision Mamba: Efficient Visual Representation Learning with Bidirectional State Space Model [paper
-](https://arxiv.org/abs/2401.09417) | [code](https://github.com/hustvl/Vim)
+4. VMamba: Visual State Space Model [paper](https://arxiv.org/abs/2401.10166) | [code](https://github.com/MzeroMiko/VMamba)
 
-3. VMamba: Visual State Space Model [paper](https://arxiv.org/abs/2401.10166) | [code](https://github.com/MzeroMiko/VMamba)
-
-4. Diffusion Models Without Attention [paper](https://arxiv.org/abs/2311.18257) | 
+5. Diffusion Models Without Attention [paper](https://arxiv.org/abs/2311.18257) | 
+6. MambaMorph: a Mamba-based Backbone with Contrastive Feature Learning for Deformable MR-CT Registration [paper](https://arxiv.org/abs/2401.13934) | [code](https://github.com/Guo-Stone/MambaMorph)
