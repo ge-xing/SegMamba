@@ -24,7 +24,7 @@ cd SegMamba
 ### Install casual-conv1d
 
 ```bash
-cd casual-conv1d
+cd causal-conv1d
 
 python setup.py install
 ```
