@@ -127,10 +127,11 @@ class GSC(nn.Module):
         x2 = self.norm3(x2)
         x2 = self.nonliner3(x2)
 
-        x = x1 * x2
+        x = x1 + x2
         x = self.proj4(x)
         x = self.norm4(x)
         x = self.nonliner4(x)
+        # x = x + x * y
         
         return x + x_residual
 
@@ -146,7 +147,8 @@ class MambaEncoder(nn.Module):
         self.downsample_layers.append(stem)
         for i in range(3):
             downsample_layer = nn.Sequential(
-                LayerNorm(dims[i], eps=1e-6, data_format="channels_first"),
+                # LayerNorm(dims[i], eps=1e-6, data_format="channels_first"),
+                nn.InstanceNorm3d(dims[i]),
                 nn.Conv3d(dims[i], dims[i+1], kernel_size=2, stride=2),
             )
             self.downsample_layers.append(downsample_layer)
@@ -167,6 +169,15 @@ class MambaEncoder(nn.Module):
 
         self.out_indices = out_indices
 
+        self.mlps = nn.ModuleList()
+        # norm_layer = partial(LayerNorm, eps=1e-6, data_format="channels_first")
+        for i_layer in range(4):
+            layer = nn.InstanceNorm3d(dims[i_layer])
+            # layer = norm_layer(dims[i_layer])
+            layer_name = f'norm{i_layer}'
+            self.add_module(layer_name, layer)
+            self.mlps.append(MlpChannel(dims[i_layer], 2 * dims[i_layer]))
+
     def forward_features(self, x):
         outs = []
         for i in range(4):
@@ -174,7 +185,11 @@ class MambaEncoder(nn.Module):
             x = self.gscs[i](x)
             x = self.stages[i](x)
 
-            outs.append(x)
+            if i in self.out_indices:
+                norm_layer = getattr(self, f'norm{i}')
+                x_out = norm_layer(x)
+                x_out = self.mlps[i](x_out)
+                outs.append(x_out)
 
         return tuple(outs)
 
