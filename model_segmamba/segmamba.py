@@ -83,6 +83,56 @@ class MlpChannel(nn.Module):
         x = self.fc2(x)
         return x
 
+class GSC(nn.Module):
+    def __init__(self, in_channles) -> None:
+        super().__init__()
+
+        self.proj = nn.Conv3d(in_channles, in_channles, 3, 1, 1)
+        self.norm = nn.InstanceNorm3d(in_channles)
+        # self.norm = LayerNorm(in_channles, eps=1e-6, data_format="channels_first")
+        self.nonliner = nn.ReLU()
+
+        self.proj2 = nn.Conv3d(in_channles, in_channles, 3, 1, 1)
+        self.norm2 = nn.InstanceNorm3d(in_channles)
+        self.nonliner2 = nn.ReLU()
+
+        self.proj3 = nn.Conv3d(in_channles, in_channles, 1, 1, 0)
+        self.norm3 = nn.InstanceNorm3d(in_channles)
+        self.nonliner3 = nn.ReLU()
+
+        self.proj4 = nn.Conv3d(in_channles, in_channles, 1, 1, 0)
+        self.norm4 = nn.InstanceNorm3d(in_channles)
+        self.nonliner4 = nn.ReLU()
+
+
+        # self.proj11 = nn.Conv3d(in_channles, in_channles, 1, 1, 0)
+
+    def forward(self, x):
+        ## x is b, c, d, w, h
+        b, c, d, w, h = x.shape
+        # y = self.proj11(x)
+        # y = torch.sigmoid(y)
+
+        x_residual = x 
+
+        x1 = self.proj(x)
+        x1 = self.norm(x1)
+        x1 = self.nonliner(x1)
+
+        x1 = self.proj2(x1)
+        x1 = self.norm2(x1)
+        x1 = self.nonliner2(x1)
+
+        x2 = self.proj3(x)
+        x2 = self.norm3(x2)
+        x2 = self.nonliner3(x2)
+
+        x = x1 * x2
+        x = self.proj4(x)
+        x = self.norm4(x)
+        x = self.nonliner4(x)
+        
+        return x + x_residual
 
 class MambaEncoder(nn.Module):
     def __init__(self, in_chans=1, depths=[2, 2, 2, 2], dims=[48, 96, 192, 384],
@@ -92,7 +142,6 @@ class MambaEncoder(nn.Module):
         self.downsample_layers = nn.ModuleList() # stem and 3 intermediate downsampling conv layers
         stem = nn.Sequential(
               nn.Conv3d(in_chans, dims[0], kernel_size=7, stride=2, padding=3),
-              LayerNorm(dims[0], eps=1e-6, data_format="channels_first")
               )
         self.downsample_layers.append(stem)
         for i in range(3):
@@ -103,34 +152,29 @@ class MambaEncoder(nn.Module):
             self.downsample_layers.append(downsample_layer)
 
         self.stages = nn.ModuleList()
+        self.gscs = nn.ModuleList()
+        dp_rates = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
         cur = 0
         for i in range(4):
+            gsc = GSC(dims[i])
             stage = nn.Sequential(
                 *[MambaLayer(dim=dims[i]) for j in range(depths[i])]
             )
+
             self.stages.append(stage)
+            self.gscs.append(gsc)
             cur += depths[i]
 
         self.out_indices = out_indices
-
-        self.mlps = nn.ModuleList()
-        norm_layer = partial(LayerNorm, eps=1e-6, data_format="channels_first")
-        for i_layer in range(4):
-            layer = norm_layer(dims[i_layer])
-            layer_name = f'norm{i_layer}'
-            self.add_module(layer_name, layer)
-            self.mlps.append(MlpChannel(dims[i_layer], 4 * dims[i_layer]))
 
     def forward_features(self, x):
         outs = []
         for i in range(4):
             x = self.downsample_layers[i](x)
+            x = self.gscs[i](x)
             x = self.stages[i](x)
-            if i in self.out_indices:
-                norm_layer = getattr(self, f'norm{i}')
-                x_out = norm_layer(x)
-                x_out = self.mlps[i](x_out)
-                outs.append(x_out)
+
+            outs.append(x)
 
         return tuple(outs)
 
@@ -164,7 +208,7 @@ class SegMamba(nn.Module):
         self.layer_scale_init_value = layer_scale_init_value
 
         self.spatial_dims = spatial_dims
-        self.mamba_encoder = MambaEncoder(in_chans, 
+        self.vit = MambaEncoder(in_chans, 
                               )
         self.encoder1 = UnetrBasicBlock(
             spatial_dims=spatial_dims,
@@ -267,7 +311,7 @@ class SegMamba(nn.Module):
         return x
 
     def forward(self, x_in):
-        outs = self.mamba_encoder(x_in)
+        outs = self.vit(x_in)
         enc1 = self.encoder1(x_in)
         x2 = outs[0]
         enc2 = self.encoder2(x2)
