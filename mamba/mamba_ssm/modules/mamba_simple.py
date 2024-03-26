@@ -50,7 +50,8 @@ class Mamba(nn.Module):
         layer_idx=None,
         device=None,
         dtype=None,
-        bimamba_type="none"
+        bimamba_type="none",
+        nslices=5
     ):
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
@@ -63,6 +64,7 @@ class Mamba(nn.Module):
         self.use_fast_path = use_fast_path
         self.layer_idx = layer_idx
         self.bimamba_type = bimamba_type
+        self.nslices = nslices
 
         self.in_proj = nn.Linear(self.d_model, self.d_inner * 2, bias=bias, **factory_kwargs)
 
@@ -120,7 +122,7 @@ class Mamba(nn.Module):
         self.D._no_weight_decay = True
 
         # bidirectional
-        assert bimamba_type == "v2"
+        assert bimamba_type == "v3"
 
         A_b = repeat(
             torch.arange(1, self.d_state + 1, dtype=torch.float32, device=device),
@@ -148,6 +150,38 @@ class Mamba(nn.Module):
 
         self.D_b = nn.Parameter(torch.ones(self.d_inner, device=device))  # Keep in fp32
         self.D_b._no_weight_decay = True
+
+        # assert bimamba_type == "v3"
+        # spatial
+        A_s = repeat(
+            torch.arange(1, self.d_state + 1, dtype=torch.float32, device=device),
+            "n -> d n",
+            d=self.d_inner,
+        ).contiguous()
+        A_s_log = torch.log(A_s)  # Keep A_b_log in fp32
+        self.A_s_log = nn.Parameter(A_s_log)
+        self.A_s_log._no_weight_decay = True 
+
+        self.conv1d_s = nn.Conv1d(
+            in_channels=self.d_inner,
+            out_channels=self.d_inner,
+            bias=conv_bias,
+            kernel_size=d_conv,
+            groups=self.d_inner,
+            padding=d_conv - 1,
+            **factory_kwargs,
+        )
+
+        self.x_proj_s = nn.Linear(
+            self.d_inner, self.dt_rank + self.d_state * 2, bias=False, **factory_kwargs
+        )
+        self.dt_proj_s = nn.Linear(self.dt_rank, self.d_inner, bias=True, **factory_kwargs)
+
+        self.D_s = nn.Parameter(torch.ones(self.d_inner, device=device))  # Keep in fp32
+        self.D_s._no_weight_decay = True
+
+
+
 
         self.out_proj = nn.Linear(self.d_inner, self.d_model, bias=bias, **factory_kwargs)
 
@@ -178,7 +212,57 @@ class Mamba(nn.Module):
         A = -torch.exp(self.A_log.float())  # (d_inner, d_state)
         # In the backward pass we write dx and dz next to each other to avoid torch.cat
         if self.use_fast_path and inference_params is None:  # Doesn't support outputting the states
-            if self.bimamba_type == "v2":
+            if self.bimamba_type == "v3":
+                A_b = -torch.exp(self.A_b_log.float())
+                out = mamba_inner_fn_no_out_proj(
+                    xz,
+                    self.conv1d.weight,
+                    self.conv1d.bias,
+                    self.x_proj.weight,
+                    self.dt_proj.weight,
+                    A,
+                    None,  # input-dependent B
+                    None,  # input-dependent C
+                    self.D.float(),
+                    delta_bias=self.dt_proj.bias.float(),
+                    delta_softplus=True,
+                )
+                out_b = mamba_inner_fn_no_out_proj(
+                    xz.flip([-1]),
+                    self.conv1d_b.weight,
+                    self.conv1d_b.bias,
+                    self.x_proj_b.weight,
+                    self.dt_proj_b.weight,
+                    A_b,
+                    None,
+                    None,
+                    self.D_b.float(),
+                    delta_bias=self.dt_proj_b.bias.float(),
+                    delta_softplus=True,
+                )
+                A_s = -torch.exp(self.A_s_log.float())
+
+                xz_s = xz.chunk(self.nslices, dim=-1)
+                xz_s = torch.stack(xz_s,dim=-1)
+                xz_s = xz_s.flatten(-2)
+                out_s = mamba_inner_fn_no_out_proj(
+                    xz_s,
+                    self.conv1d_s.weight,
+                    self.conv1d_s.bias,
+                    self.x_proj_s.weight,
+                    self.dt_proj_s.weight,
+                    A_s,
+                    None,
+                    None,
+                    self.D_s.float(),
+                    delta_bias=self.dt_proj_s.bias.float(),
+                    delta_softplus=True,
+                )
+                out_s = out_s.reshape(batch,self.d_inner,seqlen//self.nslices,self.nslices).permute(0,1,3,2).flatten(-2)
+
+                # F.linear(rearrange(out_z, "b d l -> b l d"), out_proj_weight, out_proj_bias)
+                out = F.linear(rearrange(out + out_b.flip([-1]) + out_s, "b d l -> b l d"), self.out_proj.weight, self.out_proj.bias)
+            elif self.bimamba_type == "v2":
                 A_b = -torch.exp(self.A_b_log.float())
                 out = mamba_inner_fn_no_out_proj(
                     xz,

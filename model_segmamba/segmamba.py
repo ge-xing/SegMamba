@@ -47,7 +47,7 @@ class LayerNorm(nn.Module):
             return x
 
 class MambaLayer(nn.Module):
-    def __init__(self, dim, d_state = 16, d_conv = 4, expand = 2):
+    def __init__(self, dim, d_state = 16, d_conv = 4, expand = 2, num_slices=None):
         super().__init__()
         self.dim = dim
         self.norm = nn.LayerNorm(dim)
@@ -56,7 +56,8 @@ class MambaLayer(nn.Module):
                 d_state=d_state,  # SSM state expansion factor
                 d_conv=d_conv,    # Local convolution width
                 expand=expand,    # Block expansion factor
-                bimamba_type="v2",
+                bimamba_type="v3",
+                nframes=num_slices,
         )
     
     def forward(self, x):
@@ -67,6 +68,7 @@ class MambaLayer(nn.Module):
         x_flat = x.reshape(B, C, n_tokens).transpose(-1, -2)
         x_norm = self.norm(x_flat)
         x_mamba = self.mamba(x_norm)
+
         out = x_mamba.transpose(-1, -2).reshape(B, C, *img_dims)
         return out
     
@@ -89,7 +91,6 @@ class GSC(nn.Module):
 
         self.proj = nn.Conv3d(in_channles, in_channles, 3, 1, 1)
         self.norm = nn.InstanceNorm3d(in_channles)
-        # self.norm = LayerNorm(in_channles, eps=1e-6, data_format="channels_first")
         self.nonliner = nn.ReLU()
 
         self.proj2 = nn.Conv3d(in_channles, in_channles, 3, 1, 1)
@@ -104,14 +105,7 @@ class GSC(nn.Module):
         self.norm4 = nn.InstanceNorm3d(in_channles)
         self.nonliner4 = nn.ReLU()
 
-
-        # self.proj11 = nn.Conv3d(in_channles, in_channles, 1, 1, 0)
-
     def forward(self, x):
-        ## x is b, c, d, w, h
-        b, c, d, w, h = x.shape
-        # y = self.proj11(x)
-        # y = torch.sigmoid(y)
 
         x_residual = x 
 
@@ -131,7 +125,6 @@ class GSC(nn.Module):
         x = self.proj4(x)
         x = self.norm4(x)
         x = self.nonliner4(x)
-        # x = x + x * y
         
         return x + x_residual
 
@@ -155,25 +148,24 @@ class MambaEncoder(nn.Module):
 
         self.stages = nn.ModuleList()
         self.gscs = nn.ModuleList()
-        dp_rates = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
+        num_slices_list = [64, 32, 16, 8]
         cur = 0
         for i in range(4):
-            gsc = GSC(dims[i])
+            slice_attn = GSC(dims[i])
+
             stage = nn.Sequential(
-                *[MambaLayer(dim=dims[i]) for j in range(depths[i])]
+                *[MambaLayer(dim=dims[i], num_slices=num_slices_list[i]) for j in range(depths[i])]
             )
 
             self.stages.append(stage)
-            self.gscs.append(gsc)
+            self.slice_attns.append(slice_attn)
             cur += depths[i]
 
         self.out_indices = out_indices
 
         self.mlps = nn.ModuleList()
-        # norm_layer = partial(LayerNorm, eps=1e-6, data_format="channels_first")
         for i_layer in range(4):
             layer = nn.InstanceNorm3d(dims[i_layer])
-            # layer = norm_layer(dims[i_layer])
             layer_name = f'norm{i_layer}'
             self.add_module(layer_name, layer)
             self.mlps.append(MlpChannel(dims[i_layer], 2 * dims[i_layer]))
