@@ -151,14 +151,14 @@ class MambaEncoder(nn.Module):
         num_slices_list = [64, 32, 16, 8]
         cur = 0
         for i in range(4):
-            slice_attn = GSC(dims[i])
+            gsc = GSC(dims[i])
 
             stage = nn.Sequential(
                 *[MambaLayer(dim=dims[i], num_slices=num_slices_list[i]) for j in range(depths[i])]
             )
 
             self.stages.append(stage)
-            self.slice_attns.append(slice_attn)
+            self.gscs.append(gsc)
             cur += depths[i]
 
         self.out_indices = out_indices
