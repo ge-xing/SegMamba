@@ -1,4 +1,7 @@
 # SegMamba
+
+**Now we have open-source the pre-processing, training, inference, and metrics computation codes.**
+
 SegMamba: Long-range Sequential Modeling Mamba For 3D Medical Image Segmentation
 
 [https://arxiv.org/abs/2401.13560](https://arxiv.org/abs/2401.13560)
@@ -21,7 +24,7 @@ git clone https://github.com/ge-xing/SegMamba.git
 
 cd SegMamba
 ```
-### Install casual-conv1d
+### Install causal-conv1d
 
 ```bash
 cd causal-conv1d
@@ -43,6 +46,68 @@ python setup.py install
 pip install monai
 ```
 
+## Simple test
+
+```bash
+python 0_inference.py
+```
+
+## Preprocessing, training, testing, inference, and metrics computation
+
+### Preprocessing
+In my setting, the data directory of BraTS2023 is : "./data/raw_data/BraTS2023/ASNR-MICCAI-BraTS2023-GLI-Challenge-TrainingData/"
+
+First, we need to run the rename process.
+
+```bash 
+python 1_rename_mri_data.py
+```
+
+Then, we need to run the pre-processing code to do resample, normalization, and crop processes.
+
+```bash
+python 2_preprocessing_mri.py
+```
+
+After pre-processing, the data structure will be in this format:
+
+![](images/data_structure.jpg)
+### Training 
+
+When the pre-processing process is done, we can train our model.
+
+We mainly use the pre-processde data from last step: **data_dir = "./data/fullres/train"**
+
+
+```bash 
+python 3_train.py
+```
+
+The training logs and checkpoints are saved in:
+**logdir = f"./logs/segmamba"**
+
+
+
+
+### Inference 
+
+When we have trained our models, we can inference all the data in testing set.
+
+```bash 
+python 4_predict.py
+```
+
+When this process is done, the prediction cases will be put in this path:
+**save_path = "./prediction_results/segmamba"**
+
+### Metrics computation
+We can obtain the Dice score and HD95 on each segmentation target (WT, TC, ET for BraTS2023 dataset) using this code:
+
+```bash
+python 5_compute_metrics.py --pred_name="segmamba"
+```
+
+
 
 ## Acknowledgement
 
@@ -53,7 +118,7 @@ pip install monai
 [https://github.com/bowang-lab/U-Mamba](https://github.com/bowang-lab/U-Mamba)
 
 
-# Other awesome Mambas in Vision
+## Other awesome Mambas in Vision
 1. Vivim: a Video Vision Mamba for Medical Video
 Object Segmentation [paper](https://arxiv.org/pdf/2401.14168.pdf) | [code](https://github.com/scott-yjyang/Vivim)
 2. U-Mamba: Enhancing Long-range Dependency for Biomedical Image Segmentation [paper](https://arxiv.org/abs/2401.04722) | [code](https://github.com/bowang-lab/U-Mamba)
