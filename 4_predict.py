@@ -48,7 +48,7 @@ class BraTSTrainer(Trainer):
                         depths=[2,2,2,2],
                         feat_size=[48, 96, 192, 384])
         
-        model_path = "/home/xingzhaohu/dev/jiuding_code/brats23/logs_jbhi/unetm_segmamba_0305/model/final_model_0.9038.pt"
+        model_path = "/home/xingzhaohu/dev/jiuding_code/brats23/logs/segmamba/model/final_model_0.9038.pt"
         new_sd = self.filte_state_dict(torch.load(model_path, map_location="cpu"))
         model.load_state_dict(new_sd)
         model.eval()
