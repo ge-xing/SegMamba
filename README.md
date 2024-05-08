@@ -1,6 +1,6 @@
 # SegMamba
 
-**Now we have open-source the pre-processing, training, inference, and metrics computation codes.**
+**Now we have open-sourced the pre-processing, training, inference, and metrics computation codes.**
 
 SegMamba: Long-range Sequential Modeling Mamba For 3D Medical Image Segmentation
 
@@ -53,6 +53,10 @@ python 0_inference.py
 ```
 
 ## Preprocessing, training, testing, inference, and metrics computation
+
+### Data downloading 
+
+[https://www.kaggle.com/datasets/shakilrana/brats-2023-adult-glioma](https://www.kaggle.com/datasets/shakilrana/brats-2023-adult-glioma)
 
 ### Preprocessing
 In my setting, the data directory of BraTS2023 is : "./data/raw_data/BraTS2023/ASNR-MICCAI-BraTS2023-GLI-Challenge-TrainingData/"

@@ -216,6 +216,10 @@ class SegMamba(nn.Module):
 
         self.spatial_dims = spatial_dims
         self.vit = MambaEncoder(in_chans, 
+                                depths=depths,
+                                dims=feat_size,
+                                drop_path_rate=drop_path_rate,
+                                layer_scale_init_value=layer_scale_init_value,
                               )
         self.encoder1 = UnetrBasicBlock(
             spatial_dims=spatial_dims,
