@@ -62,6 +62,7 @@ class MambaLayer(nn.Module):
     
     def forward(self, x):
         B, C = x.shape[:2]
+        x_skip = x
         assert C == self.dim
         n_tokens = x.shape[2:].numel()
         img_dims = x.shape[2:]
@@ -70,6 +71,8 @@ class MambaLayer(nn.Module):
         x_mamba = self.mamba(x_norm)
 
         out = x_mamba.transpose(-1, -2).reshape(B, C, *img_dims)
+        out = out + x_skip
+        
         return out
     
 class MlpChannel(nn.Module):
