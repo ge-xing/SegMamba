@@ -1,3 +1,5 @@
+# Copyright (c) 2023, Tri Dao, Albert Gu.
+
 import argparse
 import time
 import json
