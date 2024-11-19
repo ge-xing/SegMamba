@@ -1,5 +1,3 @@
-# Copyright (c) 2023, Tri Dao, Albert Gu.
-
 import argparse
 import time
 import json
@@ -16,6 +14,7 @@ from mamba_ssm.models.mixer_seq_simple import MambaLMHeadModel
 
 parser = argparse.ArgumentParser(description="Generation benchmarking")
 parser.add_argument("--model-name", type=str, default="state-spaces/mamba-130m")
+parser.add_argument("--tokenizer-path", type=str, default=None, help="Path to the tokenizer")
 parser.add_argument("--prompt", type=str, default=None)
 parser.add_argument("--promptlen", type=int, default=100)
 parser.add_argument("--genlen", type=int, default=100)
@@ -33,11 +32,14 @@ print(f"Loading model {args.model_name}")
 is_mamba = args.model_name.startswith("state-spaces/mamba-") or "mamba" in args.model_name
 
 if is_mamba:
-    tokenizer = AutoTokenizer.from_pretrained("/home/zhulianghui/VisionProjects/mamba/ckpts/gpt-neox-20b-tokenizer")
+    if args.tokenizer_path is None:
+        raise ValueError("For Mamba models, --tokenizer-path must be specified.")
+    tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_path)
     model = MambaLMHeadModel.from_pretrained(args.model_name, device=device, dtype=dtype)
 else:
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name)
+    tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_path or args.model_name)
     model = AutoModelForCausalLM.from_pretrained(args.model_name, device_map={"": device}, torch_dtype=dtype)
+
 model.eval()
 print(f"Number of parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
