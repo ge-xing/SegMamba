@@ -14,7 +14,7 @@ Our advantage in speed and memory.
 ![](images/segmamba_ablation.jpg)
 
 ## Contact 
-If you have any questions about our project, please feel free to contact us by email at zxing565@connect.hkust-gz.edu.cn or via WeChat at 18340097191.
+If you have any questions about our project, please feel free to contact us by email at zxing565@connect.hkust-gz.edu.cn or via WeChat at 18340097191. Furthermore, the data underlying this article will be shared on reasonable request to gaof57@mail.sysu.edu.cn.
 
 ## Environment install
 Clone this repository and navigate to the root directory of the project.
