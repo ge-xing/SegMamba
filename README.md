@@ -1,5 +1,7 @@
 # SegMamba
 
+**Recent news: If you are interested in the research about vision language models, please refers to the latest work: https://github.com/MrGiovanni/RadGPT (ICCV2025)**
+
 **Now we have open-sourced the pre-processing, training, inference, and metrics computation codes.**
 
 SegMamba: Long-range Sequential Modeling Mamba For 3D Medical Image Segmentation
